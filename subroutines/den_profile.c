@@ -1,6 +1,6 @@
 void EvalDenDist (int opCode) {
 	real vv;
-	int j, m, n;
+	int j, n;
 
 	if (opCode == 0) {
 		for (j = 0; j < numSlabs; j++) histDen[j] = 0.;
@@ -26,7 +26,7 @@ void EvalDenDist (int opCode) {
 
 /* PRINTING DENSITY PROFILES */
 void PrintDenDist (FILE *file_den_hist) {
-        real denBin, denXBin;
+        real denBin;
         int n;
         extern char den_hist_fullname[];
 

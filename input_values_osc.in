@@ -15,8 +15,6 @@ getIConf	0
 hSlab           0.04
 oldSub          0
 limitConVal	8000
-limitConstraint	0
-limitContReg	0
 nebrTabFac      350
 oldEndStep	0
 randSeed        0
@@ -27,16 +25,12 @@ sizeCoordBin	2.0
 sizeVelBin	2.0
 slope		1
 stepAvg         8000
-stepContReg	0
 stepConVal	4000
-stepConstraint	0
 stepEquil       8000
 stepLimit       1200000
 stepShiftCM	0
-stepSUEn	4000
 storeVelFor     1		// make files to store vel & forces
 surf_dist	0.793700526	//1.25992105
 temperature     1.2
 VTF_stepPrint	1000		// print configuration into VTF-file every VTF_stepPrint steps
 nSurfLayer	4
-addWidth	0.0

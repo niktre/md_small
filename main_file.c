@@ -21,242 +21,10 @@
 #define NDIM	3
 #define NHIST_C	1
 #define NHIST_V	7
-#define NHIST_E	4	// dimension of Energy calculated by the grid (number of interactions, thermostat work and Epot)
 #include "in_functions/in_mddefs.h"
 #include "in_functions/external_files.h"
 #include "in_functions/files.h"
-
-typedef struct {
-   VecR r, rv, ra, r_abs, r_vtf;		// r-vect, v-vect and a-vect, r-absolute and r-vtf
-   int inChain;				// chain identifier
-   int inSUnit;				// identificator of belonging to a substrate unit (ridge, pillar, etc.)
-} Mol;
-
-typedef struct {
-   VecR r;
-} Ghost;
-
-Ghost *ghost;
-Mol *mol;
-
-/* TYPE OF THE PROBLEM: "0" - film, "1" - flow, "2" - droplet */
-int problem;
-
-/* NUMBER OF TYPICAL ATOMS AND MONOMERS */
-int nMol, nPolyMol, nSurf;			// number of molecules in the box, number of polymer monomers and of surface atoms
-
-/* FILE VARIABLE */
-char foldername[30];				// name of working folder
-
-/* TYPICAL SIZES IN THE SYSTEM */
-VecR region;					// vect-size of the simulation box
-VecR initUcell;					// vect-size of initial cell with chains (more interested in ratio)
-VecR gapSurf;					// size of surface unit cell
-VecI surfCell;					// number of replications of unit surface cell
-real addSpace;					// space adding above the film
-real addWidth;					// control the width of the channel in FLOW problem
-real shiftWidth;				// take an old channel and move the walls toward each other
-int N_high_surf;				// number of slab where the highest substrate atome is
-int oldSub;					// do we use the substrate from old simulations (for surface tension calculation)
-real dTop_high_surf;				// distance from the highest substrate atom to the top border of the it's slab
-real *centUCinZ;				// z-coordinate of the center of cell layer
-
-/* PARAMETERS OF POTENTIALS */
-real rCut;					// cut-off distance for potentials
-real rrCut, rriCut, rriCut3;			// it's powers
-real zCutWall; 					// cut-off distance for repulsive wall interations
-real zzCutWall;					// it's power
-real U0, U0_surf;				// shifting of L-J-potential in poly-liquid and between poly-liquid and substrate
-real epsWall, surf_dist; 			// strength of polymer-substrate interaction and unitlength-parameter in surface cell
-real sigma_sur, s3_sur, ss3_sur;		// sigma in polymer-substrate potential
-real R2, k;					// FENE-constants
-real gamma_d, zeta;				// DPD-constants
-
-/* GENERAL TRAJECTORY PARAMETERS */
-int controlFile;				// whether we need the file with control-values (Ree, etc.)
-int randSeed;					// initial random value (depends on clock when = 0)
-int storeVelFor;				// whether we need to store velocities and forces
-int stepConVal, limitConVal;			// analyse values every stepConVal steps till come to limitConVal step
-int stepAvg, stepCount, stepEquil, stepLimit;	// parameters of the trajectory
-int VTF_stepPrint;				// print configuration into VTF-file every VTF_stepPrint steps
-int restart;					// continuation of the trajectory for longer run
-int oldEndStep;					// last step in previous trajectory
-int einstCryst;					// represent substrate as a einstein crystal
-real ampSchwing, periodSchwing, omegaSchwing;	// oscillations of walls
-real epsChemWall, periodChem;			// 2nd eps for a running droplet and period of chemical changing of the substrate
-real epsChemStore;				// reservoir for keeping two epsilons
-int getIConf;					// start from existing conformation
-
-/* THERMOSTAT PARAMETERS */
-real deltaT, density;				// timestep, initial density
-real temperature;				// initial temperature in the box (sets initial velocities)
-
-/* CALCULATION PROPERTIES OF THE SYSTEM*/
-real timeNow;					// current "box"-time
-VecR vSum;					// "impulse"-vect of the system
-real U_LJ_sub, uSum, velMag, velMagSub, vvSum, virSum;	// LJ-potential for pol-liquid-substrate, OTHERS
-Prop kinEnergy, totEnergy, p_sEnergy, pressure;	// kinEn, totEn, Polymer-Surface Energy and pressure in the whole cell
-Prop f1x, f1y, f1z, f2x, f2y, f2z, fTx, fTy, fTz;	// force acting on top, bottom and both layers of the substrate
-real instTemp;					// temperature in the box (averaged over time)
-
-/* CHAIN PARAMETERS */
-VecI initUchain;				// numbezer of chain-cell replications
-int chainLen; 					// length of the chain
-int nChain;					// number of chains
-int chainRed;					// not construct every chainRed chain
-Prop ReeAv, ReeAv_x, ReeAv_y, ReeAv_z;		// end-to-end distances
-real bondLength;				// bond length in chain
-
-/* SURFACE PARAMETERS */
-int nSurfLayer;					// number of surface layers
-VecI surfSave;					// number of surface cells to save in a layer
-VecI surfDel;					// number of surface cells to delete from the layer
-int slope;					// incline the substrate's consituents
-int flatTopW;					// create a flat wall at the top of the simulation box
-real epsTopW;					// value of eps strength for top wall
-VecR force1, force2, forceT;			// forces acting on top, bottom and both layers of the substrate
-int atTopWall, atBotWall;			// number of atoms in top and bottom walls
-
-/* NEIGHBOR-LIST*/
-// cells division
-VecI cells;					//
-int *cellList;					//
-// neighbor-list variables
-real dispHi;					//
-real rNebrShell;				//
-int nebrTabLen;					//
-int *nebrTab, nebrNow, nebrTabFac, nebrTabMax;	//
-
-/* INCREMENTS FOR DIFFERENT LOOPS */
-int moreCycles;					// continuation of Step-cycle
-int addControlStep;				// trigger of opening control file for "append" info
-int countConVal;				// control-file increment value
-
-/* HISTOGRAMS */
-// density, normal and transverse pressure histograms
-real hSlab;					// height of the slab
-real *histDen, *snapDen, *histDenX, *histAvDen;	// density-histograms in z- and x- directions and for snapshot
-real *histPn, *histPnW, *histPt, *histPtW; 	// normal and normal wall, transverse and transverse wall
-real *histPx, *histPy;				// x and y pressures
-real *snapVx, *histVx;				// Vx - component
-real *snapTx, *histTx;				// Tx - component
-real *snapT, *histT;				// T - value
-real *histAvVx;					// average for slab Vx - component
-real *histAvTx;					// average for slab Tx - component
-real *histAvT;					// average for slab T - value
-int countDenPn;					// counter for Den P averaging
-int halfSl, halfSlX, numSlabs, numSlabsX;	// half-number of slabs, number of slabs
-
-/* CONTACT REGION ANALYSIS */
-real topSubAtZ;					// coordinate of the highest substrate atom
-real contRegWidth;				// the width of the region for analysis
-VecI contRegGrid;				// number of grid cells includes contact region
-real *contRegDen;				// number density inside the cell in cont region
-real **contRegDen2D;				// number density to plot 2D density map
-real **contRegDenMap;				// number density to plot 2D density map (appears to be copy of contRegDen2D, needed for OUTPUT only!)
-real *cRegLeftProf, *cRegRightProf;		// profiles of left and right parts of the cont region
-int stepContReg, limitContReg, countContReg;	// step, limit and counter for Contact Region
-int k0;						// layer, where the last atom of the substrate is (in sizeCoordGrid grid)
-
-real sizeCoordBin;				// number of coordinate grid cells in x-, y- and z-directions
-real sizeVelBin;				// number of velocity grid cells in x-, y- and z-directions
-VecLI sizeCoordGrid;				// number of coordinate grid cells in x-, y- and z-directions
-VecLI sizeVelGrid;				// number of velocity grid cells in x-, y- and z-directions
-real coordGrid;					// typical size of the grid for coordinates (~0.1 sigma)
-int *part_y_p_coord, *part_y_m_coord;		// number of particles in every y-grid-plane for "+" and "-" region.x (for coord calc)
-//int *part_y_p_vel, *part_y_m_vel;		// number of particles in every y-grid-plane for "+" and "-" region.x (for vel calc)
-int *ocCellXY;					// occupied cells in XY-plane (with the same Z)
-real **histCoordGrid, **histVelGrid;		// snapshot values centrified with respect to CM for every y-layer
-real **snapCoordGrid, **snapVelGrid;		// snapshot values in coord and velocity grid
-real *rx_p_coord, *rx_m_coord;			// x-coord of CM in coord grid for every y-layer
-real *rx_p_vel, *rx_m_vel;
-// real *rz_av_vel;		// x- and z-coord of CM in velocity grid for every y-layer
-real *profileT, *profileVx;			// Temp and Vx profiles (z-layer) based on grid geometry (not so good for droplet!!!)
-real *profileZX, *profile_botZX;		// lines defining top and bottom borders of a drop
-real **den2D, **denMap;				// both are density maps (just one doesn't work)
-//real **nMolVel2D;				// number of molecules in a "tube" with constant x and z for velocity grid
-real **vel2D_x, **vel2D_z;		// x- and z-velocities based on averaging over y-layers
-real **vel2D_xx, **vel2D_zz, **dropVel2D;	// x-, z- and total energies based on averaging over y-layers
-
-/* DROP MOTION ANALYSIS */
-int addCMStep;					// indicator of CM-file existence
-VecR globCM, VglobCM;				// coordinates and velocity of Global Centre of Mass
-
-/* THERMOSTAT WORK ANALYSIS */
-real **histEnGrid, **snapEnGrid;		// grids connected to calculation of "take and give" by thermostat and potential energies
-real **potEnPP, **potEnPS, **thermTaG2D;
-int *part_y_p_en, *part_y_m_en;
-real *rx_p_en, *rx_m_en;
-int stepSUEn;					// make a snapshot of SUnit - polymer liquid energy every stepSUEn steps
-int totSUnitNum;				// total number of substrate units
-real *enLJSUnit;				// energy of interaction with specific substrate Unit
-real effSUArea;					// effective area of substrate Unit
-VecI globCMslab;
-int n_globCM;
-real gravField, shearRate;
-VecR fastCMvel, snapCMvel;
-
-/* CONSTRAINT CM */
-int trajType;
-int limitConstraint, stepConstraint;
-int stepShiftCM;
-real fConst, fConstSurf, fConstAv;		// constraint force acting on the centre of mass
-int segmPathNum;				// number of path's segments
-real pathLen, segmPathLen;			// length of the thermodynamical path
-
-NameList nameList[] = {
-   NAME_I (problem),		// type of the system under simulation
-   NAME_I (flatTopW),		// creates a flat wall made of atoms at the top of the simulation box
-   NAME_R (epsTopW),		// eps strength for top wall of the simulation box
-   NAME_R (epsChemWall),		// 2nd eps for a running droplet
-   NAME_R (periodChem),		// period of chemical changing of the substrate
-   NAME_R (ampSchwing),		// amplitude of wall's oscillations
-   NAME_R (periodSchwing),		// period of wall's oscillations
-   NAME_I (chainLen),		// length of the chain
-   NAME_I (chainRed),		// not constract every chainRed chain (redicung the thickness)
-   NAME_I (controlFile),		// whether we need the file with control-values (Ree, etc.)
-   NAME_R (deltaT),		// timestep
-   NAME_R (density),		// initial density of polymer liquid
-   NAME_I (einstCryst),		// substrate represented by einstein crystal
-   NAME_R (gamma_d),		// dissipative constant in DPD
-   NAME_I (getIConf),		// initial conformation from external file
-   NAME_R (hSlab),			// height of the slab
-   //	NAME_R (initUcell),		// relative size of initial unit cell
-   NAME_I (oldSub),		// do we use the substrate from old simulations (for surface tension calculation)
-   NAME_I (limitConstraint),
-   NAME_I (limitConVal),
-   NAME_I (limitContReg),
-   NAME_I (nebrTabFac),
-   NAME_I (oldEndStep),		// the end step from previous simulation run
-   NAME_I (randSeed),		// random number initial value
-   NAME_I (restart),		// shows whether current run is continuation of previous
-   NAME_R (rNebrShell),		// radius of neighbor-shell
-   NAME_R (sigma_sur),		// defines the sigma-constant in VdW interaction
-   NAME_R (sizeCoordBin),		// size of coordinate histogram grid
-   NAME_R (sizeVelBin),		// size of velocity histogram grid
-   NAME_I (slope),			// make a slope in the substrate
-   NAME_I (stepAvg),		// number of steps for averaging
-   NAME_I (stepContReg),
-   NAME_I (stepConVal),		// evaluate control values every stepConVal steps
-   NAME_I (stepConstraint),	// evaluate constraint force every stepConstraint steps
-   NAME_I (stepEquil),		// number of equilibration steps
-   NAME_I (stepLimit),		// length of trajectory (in steps)
-   NAME_I (stepShiftCM),
-   NAME_I (stepSUEn),		// make a snapshot of SUnit-polymer liquid energies every stepSUEn steps
-   NAME_I (storeVelFor),		// indicates whether we need to store velocities and forces for trajectory
-   NAME_R (surf_dist),		// defines the density of surface atoms
-   NAME_R (gravField),		// Poiseuille flow
-   NAME_R (shearRate),		// Couette flow
-   NAME_R (temperature),		// temperature in the system
-   NAME_I (VTF_stepPrint),		// print configuration into VTF-file every VTF_stepPrint steps
-   NAME_I (nSurfLayer),
-   NAME_I (surfSave),
-   NAME_I (surfDel),
-   NAME_R (epsWall),		// strength of liquid-substrate interaction
-   NAME_I (initUchain),		// replications of chains-unit
-   NAME_R (addWidth),		// control the width of the channel in FLOW problem;
-   NAME_R (shiftWidth),		// detailed control of the channel's width;
-};
+#include "main_file.h"
 
 int main (int argc, char **argv) {
    MakeParamFile (stdout, stdout, stdout, argc, argv);
@@ -274,17 +42,6 @@ int main (int argc, char **argv) {
 /* MD SINGLE STEP IMPLEMENTATION */
 void SingleStep () {
    ++stepCount;
-   
-   /* define type of trajectory for constrained CM investigation*/
-   if (restart != 1 || oldEndStep != 0) {
-      trajType = 0;
-   } else if ( (stepCount - 1) % (stepEquil + limitConstraint + stepShiftCM) == 0 ) {
-      trajType = 0;
-   } else if ( (stepCount - stepEquil - 1) % (stepEquil + limitConstraint + stepShiftCM) == 0 ) {
-      trajType = 1;
-   } else if ( (stepCount - stepEquil - stepShiftCM - 1) % (stepEquil + limitConstraint + stepShiftCM) == 0 ) {
-      trajType = 2;
-   }
    
    timeNow = stepCount * deltaT;
    LeapfrogStep (1);
@@ -310,12 +67,6 @@ void SingleStep () {
    } else {
    }
    
-   /* if we have an einstein crystal */
-   if (einstCryst == 1 && problem != 1) {
-      ComputeEinstCryst ();
-   } else {
-   }
-   
    /* if we have wall oscillations */
    if (problem == 2 && (stepCount > stepEquil) && ampSchwing != .0) {
       ComputeWandSchwingungen ();
@@ -336,11 +87,6 @@ void SingleStep () {
    } else {
    }
    
-   /* if we want investigate a constrained dynamics */
-   if (restart == 1 && oldEndStep == 0) {
-      ConstraintCM (trajType);
-   }
-   
    /* if we want to change the width of the channel "on the fly" */
    if (problem == 1 && shiftWidth != 0. && (stepCount <= (int) (0.5*stepEquil))) {
       ModifyWidth ();
@@ -349,9 +95,7 @@ void SingleStep () {
    LeapfrogStep (2);
    EvalProps ();
    AccumProps (1);
-   if ((stepCount > stepEquil) && (stepCount - stepEquil) % stepSUEn == 0) {
-      PrintSUEn (stdout); 	// soll ich andere Datei für Oberfläche-polymer energien schaffen???
-   }
+
    if ((VTF_stepPrint != 0) && (stepCount % VTF_stepPrint == 0)) {
       WrapChainsIntoCell ();
       PrintVTF (stdout);
@@ -359,21 +103,9 @@ void SingleStep () {
    if (stepCount % stepAvg == 0) {
       AccumProps (2);
       PrintSummary (stdout, problem);
-      PrintEnMom (stdout);
       AccumProps (0);
       MakeFilename (stepCount / stepAvg, storeVelFor);
       CVFoutput (stdout, storeVelFor, stdout);		// function to store coord, vel, forces
-   }
-   if ((stepContReg != 0) && (stepCount > stepEquil) && (stepCount - stepEquil) % stepContReg == 0) {
-      countContReg += stepContReg;
-      EvalContactRegion (1);
-      if (countContReg == limitContReg) {
-         EvalContactRegion (2);
-         MakeContactRegFilename ((stepCount - stepEquil) / countContReg);
-         PrintContactRegion (stdout, stdout);
-         EvalContactRegion (0);
-         countContReg = 0;
-      }
    }
    if ((stepCount > stepEquil) && (stepCount - stepEquil) % stepConVal == 0) {
       countDenPn += stepConVal;
@@ -384,7 +116,6 @@ void SingleStep () {
       EvalControlValues (controlFile, 1);
       CoordGridAverage (1);
       VelGridAverage (1);
-      EnGridAverage (1);
       PrintPosVelCM(stdout);
       addCMStep = 1;
       if (countDenPn == limitConVal) {
@@ -410,12 +141,10 @@ void SingleStep () {
          
          CoordGridAverage (2);
          VelGridAverage (2);
-         EnGridAverage (2);
          EvalGridProfile ();
          PrintGridProfile (stdout, stdout, stdout, stdout);
          CoordGridAverage (0);
          VelGridAverage (0);
-         EnGridAverage (0);
          
          countDenPn = 0;
       }
@@ -445,13 +174,6 @@ void SetupJob () {
       AccumProps (0);
       addControlStep = 0;	// stage of adding info to control-file
       addCMStep = 0;
-   } else if (restart == 1 && oldEndStep == 0) {	// start NEW trajectorie for spec. calculations (i.e. constraint force)
-      stepCount = oldEndStep;
-      ReadCoordsVelsAccels (stdout, stdout, stdout, stdout);
-      PrintInitConf (stdout, stdout);
-      AccumProps (0);
-      addControlStep = 1;
-      addCMStep = 1;
    } else if (restart == 1 && oldEndStep != 0) {	// just CONTINUE EXISTING trajectory
       stepCount = oldEndStep;
       if (problem == 1 && shiftWidth != 0. && (stepCount >= (int) (0.5*stepEquil))) {
@@ -471,12 +193,8 @@ void SetupJob () {
    }
    CoordGridAverage (0);
    VelGridAverage (0);
-   EnGridAverage (0);
-   if (stepContReg != 0) {
-      EvalContactRegion (0);
-   }
+
    countDenPn = 0;
-   countContReg = 0;
    nebrNow = 1;
    countConVal = 0;
 }
@@ -529,7 +247,6 @@ void SetParams () {
       effSUArea = region.x;
    } else {
       totSUnitNum = (surfCell.x * surfCell.y);
-      //		effSUArea = ( (surfSave.x + 0.5) / SQR(surfSave.x + surfDel.x + 1) ) * region.x;
       effSUArea = (surfSave.x + 0.5) * region.x / surfCell.x;
    }
    // betrachten y-Richtung Struktur der Oberfläche
@@ -538,7 +255,6 @@ void SetParams () {
       effSUArea *= region.y;
    } else {
       totSUnitNum /= ( (surfSave.x + surfDel.x + 1) * (surfSave.y + surfDel.y + 1) );
-      //		effSUArea *= ( (surfSave.y + 0.5) / SQR(surfSave.y + surfDel.y + 1) ) * region.y;
       effSUArea *= (surfSave.y + 0.5) * region.y / surfCell.y;
    }
    if (problem == 1) {
@@ -599,7 +315,6 @@ void SetParams () {
       sizeCoordGrid.x = temp_bin;
    else
       sizeCoordGrid.x = temp_bin + 1;
-   //	sizeCoordGrid.y = 8;
    temp_bin = (int) (region.y / sizeCoordBin);
    if (temp_bin % 2 == 0)
       sizeCoordGrid.y = temp_bin;
@@ -622,21 +337,6 @@ void SetParams () {
       sizeVelGrid.z = temp_bin;
    else
       sizeVelGrid.z = temp_bin + 1;
-   
-   /* contact region parameters */
-   coordGrid = 0.2;
-   contRegWidth = 6.0;
-   contRegGrid.x = sizeCoordGrid.x;
-   contRegGrid.y = (int) (region.y / coordGrid);
-   contRegGrid.z = (int) (contRegWidth * sizeCoordGrid.z / region.z) + 1;
-   
-   /* thermodynamical integration */
-   if (restart == 1 && oldEndStep == 0) {
-      trajType = 0;
-      segmPathNum = (int) (stepLimit / (stepEquil + limitConstraint + stepShiftCM) );
-      pathLen = 2. * (surfSave.x + surfDel.x + 1) * region.x / surfCell.x;
-      segmPathLen = pathLen / segmPathNum;			// length of the segment of the path
-   }
 }
 
 /* DYNAMICAL VARIABLES */
@@ -672,43 +372,23 @@ void AllocArrays () {
    
    ALLOC_MEM (part_y_p_coord, sizeCoordGrid.y, int);
    ALLOC_MEM (part_y_m_coord, sizeCoordGrid.y, int);
-   //	ALLOC_MEM (part_y_p_vel, sizeVelGrid.y, int);
-   //	ALLOC_MEM (part_y_m_vel, sizeVelGrid.y, int);
-   //	ALLOC_MEM (part_y_p_en, sizeVelGrid.y, int);
-   //	ALLOC_MEM (part_y_m_en, sizeVelGrid.y, int);
    ALLOC_MEM (rx_p_coord, sizeCoordGrid.y, real);
    ALLOC_MEM (rx_m_coord, sizeCoordGrid.y, real);
-   //	ALLOC_MEM (rx_p_vel, sizeVelGrid.y, real);
-   //	ALLOC_MEM (rx_m_vel, sizeVelGrid.y, real);
-   //	ALLOC_MEM (rx_p_en, sizeVelGrid.y, real);
-   //	ALLOC_MEM (rx_m_en, sizeVelGrid.y, real);
    
    ALLOC_MEM (ocCellXY, sizeVelGrid.z, int);
    ALLOC_MEM (cellList, V_PROD (cells) + nMol, int);
    ALLOC_MEM (nebrTab, 2 * nebrTabMax, int);
-   ALLOC_MEM (contRegDen, V_PROD (contRegGrid), real);
-   ALLOC_MEM (cRegLeftProf, contRegGrid.y, real);
-   ALLOC_MEM (cRegRightProf, contRegGrid.y, real);
-   ALLOC_MEM (enLJSUnit, totSUnitNum, real);
    ALLOC_MEM2 (den2D, sizeCoordGrid.x, sizeCoordGrid.z, real);
    ALLOC_MEM2 (denMap, sizeCoordGrid.x, sizeCoordGrid.z, real);
-   ALLOC_MEM2 (contRegDen2D, contRegGrid.x, contRegGrid.y, real);
-   ALLOC_MEM2 (contRegDenMap, contRegGrid.x, contRegGrid.y, real);
    ALLOC_MEM2 (histCoordGrid, NHIST_C, V_PROD (sizeCoordGrid), real);
    ALLOC_MEM2 (snapCoordGrid, NHIST_C, V_PROD (sizeCoordGrid), real);
    ALLOC_MEM2 (histVelGrid, NHIST_V, V_PROD (sizeVelGrid), real);
    ALLOC_MEM2 (snapVelGrid, NHIST_V, V_PROD (sizeVelGrid), real);
-   ALLOC_MEM2 (histEnGrid, NHIST_E, V_PROD (sizeVelGrid), real);
-   ALLOC_MEM2 (snapEnGrid, NHIST_E, V_PROD (sizeVelGrid), real);
-   //	ALLOC_MEM2 (nMolVel2D, sizeVelGrid.x, sizeVelGrid.z, real);
    ALLOC_MEM2 (vel2D_x, sizeVelGrid.x, sizeVelGrid.z, real);
    ALLOC_MEM2 (vel2D_z, sizeVelGrid.x, sizeVelGrid.z, real);
    ALLOC_MEM2 (vel2D_xx, sizeVelGrid.x, sizeVelGrid.z, real);
    ALLOC_MEM2 (vel2D_zz, sizeVelGrid.x, sizeVelGrid.z, real);
    ALLOC_MEM2 (dropVel2D, sizeVelGrid.x, sizeVelGrid.z, real);
-   ALLOC_MEM2 (thermTaG2D, sizeVelGrid.x, sizeVelGrid.z, real);
-   ALLOC_MEM2 (potEnPP, sizeVelGrid.x, sizeVelGrid.z, real);
-   ALLOC_MEM2 (potEnPS, sizeVelGrid.x, sizeVelGrid.z, real);
 }
 
 /* NEIGHBOR LIST */
@@ -744,22 +424,23 @@ void BuildNebrList () {
                m2 = V_LINEAR (m2v, cells) + nMol;
                DO_CELL (j1, m1) {
                   DO_CELL (j2, m2) {
-                     if ((m1 != m2 || j2 < j1) && ( (mol[j1].inChain == -1 && mol[j2].inChain != -1) ||	// if j1 is surface atom and j2 is not
-                                                   (mol[j2].inChain == -1 && mol[j1].inChain != -1) ||		// or if j2 is surface atom and j1 is not
-                                                   ( (mol[j1].inChain != -1 && mol[j2].inChain != -1) &&	// or j1 and j2 not from the surface both combined with:
-                                                    (mol[j1].inChain != mol[j2].inChain ||			// (j1 and j2 from different chains
-                                                     abs (j1 - j2) > 1) ))) {					// or j1 and j2 separated by at least 1 bead)
-                                                       V_SUB (dr, mol[j1].r, mol[j2].r);
-                                                       V_V_SUB (dr, shift);
-                                                       if (V_LEN_SQ (dr) < rrNebr) {
-                                                          if (nebrTabLen >= nebrTabMax) {
-                                                             ErrExit (ERR_TOO_MANY_NEBRS);
-                                                          }
-                                                          nebrTab[2 * nebrTabLen] = j1;
-                                                          nebrTab[2 * nebrTabLen + 1] = j2;
-                                                          ++nebrTabLen;
-                                                       }
-                                                    }
+                     if ( (m1 != m2 || j2 < j1) &&
+                        ((mol[j1].inChain == -1 && mol[j2].inChain != -1) ||	// if j1 is surface atom and j2 is not
+                        (mol[j2].inChain == -1 && mol[j1].inChain != -1) ||		// or if j2 is surface atom and j1 is not
+                        ((mol[j1].inChain != -1 && mol[j2].inChain != -1) &&	// or j1 and j2 not from the surface both combined with:
+                        (mol[j1].inChain != mol[j2].inChain ||			// (j1 and j2 from different chains
+                        abs (j1 - j2) > 1) )) ) {					// or j1 and j2 separated by at least 1 bead)
+                           V_SUB (dr, mol[j1].r, mol[j2].r);
+                           V_V_SUB (dr, shift);
+                           if (V_LEN_SQ (dr) < rrNebr) {
+                              if (nebrTabLen >= nebrTabMax) {
+                                 ErrExit (ERR_TOO_MANY_NEBRS);
+                              }
+                              nebrTab[2 * nebrTabLen] = j1;
+                              nebrTab[2 * nebrTabLen + 1] = j2;
+                              ++nebrTabLen;
+                           }
+                        }
                   }
                }
             }
@@ -771,48 +452,15 @@ void BuildNebrList () {
 /* COMPUTATION OF FORCES BETWEEN NON-CONNECTED BEADS AND BEADS-SUBSTRATE_ATOMS(with neighbor-list) */
 void ComputeForces () {
    VecR dr, dv;		// distance and velocity difference between i- and j- beads (VECTORS)
-   real scal, fDispRand, fDisp, fRand, theta, uVal, omega_r, omega_d;	// dissipative and random forces variables
+   real scal, fDispRand, theta, uVal, omega_r;	// dissipative and random forces variables
+   real zeta = sqrt (24. * temperature * gamma_d / deltaT);
    real fcVal, rr, rri, rri3;
-   int j1, j2, n, j;
-   
-   VecR invWid, rs;
-   VecI cc;
-   int c, hSize;
-   real uValPP, uValPS;	// polymer-polymer and polymer-surface energies
+   int j1, j2, n;
    
    DO_MOL V_ZERO (mol[n].ra);
    uSum = 0.;
    U_LJ_sub = 0.;
    virSum = 0.;
-   
-   uValPP = uValPS = 0.;
-   
-   /* set all substrate Unit - polymer liquid interactions to zero */
-   for (n = -1; n < totSUnitNum; n++) {
-      enLJSUnit[n] = 0.;
-   }
-   
-   if ((stepCount > stepEquil) && (stepCount - stepEquil) % stepConVal == 0) {
-      hSize = V_PROD (sizeVelGrid);		// number of grid cells in the system
-      
-      /* setting initial snapshots values to zero */
-      for (j = 0; j < NHIST_E; j++) {
-         for (n = 0; n < hSize; n++) snapEnGrid[j][n] = 0.;
-      }
-      
-      /* setting two parameters to zero */
-      /*		for (j = 0; j < sizeVelGrid.y; j++) {
-       rx_p_en[j] = 0.;
-       part_y_p_en[j] = 0;
-       rx_m_en[j] = 0.;
-       part_y_m_en[j] = 0;
-       }
-       */	}
-   
-   if (restart == 1 && oldEndStep == 0) {
-      fConst = 0.;
-      fConstSurf = 0.;
-   }
    
    for (n = 0; n < nebrTabLen; n++) {
       j1 = nebrTab[2 * n];
@@ -830,107 +478,34 @@ void ComputeForces () {
             if ((mol[j1].inChain != -1) && (mol[j2].inChain != -1)) {	// interaction of nonbonded chain particles
                fcVal = 48. * rri3 * (rri3 - 0.5) * rri;
                uVal = 4. * rri3 * (rri3 - 1.) - U0;
-               uValPP = uVal;
-               uValPS = 0.;
                V_V_S_ADD (mol[j1].ra, fcVal, dr);
                V_V_S_ADD (mol[j2].ra, -fcVal, dr);
-               if (restart == 1 && oldEndStep == 0) {
-                  fConst += fcVal * dr.x;
-                  fConst -= fcVal * dr.x;
-               }
+
             } else if ((mol[j1].inChain == -1) && (mol[j1].inSUnit != -2) && (mol[j2].inChain != -1)) {
                fcVal = 48. * epsWall * rri3 * ss3_sur * (rri3 * ss3_sur - 0.5) * rri; // interaction with the substrate
                uVal = 4. * epsWall * rri3 * ss3_sur * (rri3 * ss3_sur - 1.) - U0_surf;
                U_LJ_sub += uVal;
-               uValPP = 0.;
-               uValPS = uVal;
-               if ((stepCount > stepEquil) && (stepCount - stepEquil) % stepSUEn == 0) {
-                  enLJSUnit[mol[j1].inSUnit] += uVal;
-               }
                V_V_S_ADD (mol[j2].ra, -fcVal, dr);
-               if (einstCryst == 1) {
-                  V_V_S_ADD (mol[j1].ra, fcVal, dr);
-               }
-               if (restart == 1 && oldEndStep == 0) {
-                  fConst -= fcVal * dr.x;
-                  fConstSurf -= fcVal * dr.x;
-               }
+
             } else if ((mol[j1].inChain == -1) && (mol[j1].inSUnit == -2) && (mol[j2].inChain != -1)) {
                fcVal = 48. * epsTopW * rri3 * ss3_sur * rri3 * ss3_sur * rri; // repulsive interaction with the flatTopW
-               //					fcVal = 48. * epsTopW * rri3 * ss3_sur * (rri3 * ss3_sur - 0.5) * rri; // rep-att interaction with the flatTopW
                uVal = 4. * epsTopW * rri3 * ss3_sur * rri3 * ss3_sur;
-               //					uVal = 4. * epsTopW * rri3 * ss3_sur * (rri3 * ss3_sur - 1.);
                U_LJ_sub += uVal;
-               uValPP = 0.;
-               uValPS = uVal;
-               if ((stepCount > stepEquil) && (stepCount - stepEquil) % stepSUEn == 0) {
-                  enLJSUnit[mol[j1].inSUnit] += uVal;
-               }
                V_V_S_ADD (mol[j2].ra, -fcVal, dr);
-               if (einstCryst == 1) {
-                  V_V_S_ADD (mol[j1].ra, fcVal, dr);
-               }
-               if (restart == 1 && oldEndStep == 0) {
-                  fConst -= fcVal * dr.x;
-                  fConstSurf -= fcVal * dr.x;
-               }
+
             } else if ((mol[j1].inChain != -1) && (mol[j2].inChain == -1) && (mol[j2].inSUnit != -2)) {
                fcVal = 48. * epsWall * rri3 * ss3_sur * (rri3 * ss3_sur - 0.5) * rri; // interaction with the substrate
                uVal = 4. * epsWall * rri3 * ss3_sur * (rri3 * ss3_sur - 1.) - U0_surf;
                U_LJ_sub += uVal;
-               uValPP = 0.;
-               uValPS = uVal;
-               if ((stepCount > stepEquil) && (stepCount - stepEquil) % stepSUEn == 0) {
-                  enLJSUnit[mol[j2].inSUnit] += uVal;
-               }
                V_V_S_ADD (mol[j1].ra, fcVal, dr);
-               if (einstCryst == 1) {
-                  V_V_S_ADD (mol[j2].ra, -fcVal, dr);
-               }
-               if (restart == 1 && oldEndStep == 0) {
-                  fConst += fcVal * dr.x;
-                  fConstSurf += fcVal * dr.x;
-               }
+
             } else if ((mol[j1].inChain != -1) && (mol[j2].inChain == -1) && (mol[j2].inSUnit == -2)) {
-               fcVal = 48. * epsTopW * rri3 * ss3_sur * rri3 * ss3_sur * rri; // interaction with the flatTopW
-               //					fcVal = 48. * epsTopW * rri3 * ss3_sur * (rri3 * ss3_sur - 0.5) * rri; // rep-att interaction with the flatTopW
+               fcVal = 48. * epsTopW * rri3 * ss3_sur * rri3 * ss3_sur * rri; // repulsive interaction with the flatTopW
                uVal = 4. * epsTopW * rri3 * ss3_sur * rri3 * ss3_sur;
-               //					uVal = 4. * epsTopW * rri3 * ss3_sur * (rri3 * ss3_sur - 1.);
                U_LJ_sub += uVal;
-               uValPP = 0.;
-               uValPS = uVal;
-               if ((stepCount > stepEquil) && (stepCount - stepEquil) % stepSUEn == 0) {
-                  enLJSUnit[mol[j2].inSUnit] += uVal;
-               }
                V_V_S_ADD (mol[j1].ra, fcVal, dr);
-               if (einstCryst == 1) {
-                  V_V_S_ADD (mol[j2].ra, -fcVal, dr);
-               }
-               if (restart == 1 && oldEndStep == 0) {
-                  fConst += fcVal * dr.x;
-                  fConstSurf += fcVal * dr.x;
-               }
+
             } else {
-            }
-            
-            if ((stepCount > stepEquil) && (stepCount - stepEquil) % stepConVal == 0) {
-               V_DIV (invWid, sizeVelGrid, region);
-               
-               /* sorting interaction energy for j1 */
-               V_S_ADD (rs, mol[j1].r, 0.5, region);	//shifts coordinates to "positive" region (from 0 to L)
-               V_MUL (cc, rs, invWid);
-               c = V_LINEAR (cc, sizeVelGrid);
-               snapEnGrid[1][c] += 0.5 * uValPP;
-               snapEnGrid[2][c] += 0.5 * uValPS;
-               //					snapEnGrid[3][c] += 0.5 * produced by thermostat
-               
-               /* sorting interaction energy for j2 */
-               V_S_ADD (rs, mol[j2].r, 0.5, region);	//shifts coordinates to "positive" region (from 0 to L)
-               V_MUL (cc, rs, invWid);
-               c = V_LINEAR (cc, sizeVelGrid);
-               snapEnGrid[1][c] += 0.5 * uValPP;
-               snapEnGrid[2][c] += 0.5 * uValPS;
-               //					snapEnGrid[3][c] += 0.5 * produced by thermostat
             }
             
             uSum += uVal;
@@ -941,29 +516,14 @@ void ComputeForces () {
             V_SUB (dv, mol[j1].rv, mol[j2].rv);
             scal = V_DOT (dr, dv);
             /* random forces */
-            zeta = sqrt (12. * 2. * temperature * gamma_d / deltaT);
             theta = RandR () - 0.5;
             fDispRand = (zeta * theta - gamma_d * scal * omega_r) * omega_r;
-            
-            if (einstCryst == 1) {
-               V_V_S_ADD (mol[j1].ra, fDispRand, dr);
-               V_V_S_ADD (mol[j2].ra, -fDispRand, dr);
-            } else if ((einstCryst == 0) && (mol[j1].inChain != -1) && (mol[j2].inChain != -1)) {
-               // if j1 and j2 are monomers
-               //					if ((mol[j1].inChain != -1) && (mol[j2].inChain != -1)) {
-               V_V_S_ADD (mol[j1].ra, fDispRand, dr);
-               V_V_S_ADD (mol[j2].ra, -fDispRand, dr);
-               /*					if (restart == 1 && oldEndStep == 0) {
-                fConst += fDispRand * dr.x;
-                fConst -= fDispRand * dr.x;
-                }
-                */				} else {
-                   //					if (mol[j1].inChain == -1) {
-                   //						V_V_S_ADD (mol[j2].ra, -fDispRand, dr);
-                   //					} else {
-                   //						V_V_S_ADD (mol[j1].ra, fDispRand, dr);
-                   //					}
-                }
+
+				if (mol[j1].inChain != -1) {
+					V_V_S_ADD (mol[j1].ra, fDispRand, dr);
+				} else if (mol[j2].inChain != -1) {
+					V_V_S_ADD (mol[j2].ra, -fDispRand, dr);
+				}
          }
       }
    }
@@ -975,11 +535,8 @@ void ComputeChainBondForces () {
    real fcVal, fTot, rr, rri, rri3, uVal, rrno;
    int i, j1, j2, n;
    
-   real scal, fDispRand, fDisp, fRand, theta, omega_r, omega_d;	// DPD
-   
-   VecR invWid, rs;
-   VecI cc;
-   int c, hSize;
+   real scal, fDispRand, theta, omega_r;	// DPD
+   real zeta = sqrt (24. * temperature * gamma_d / deltaT);
    
    fTot = 0.;
    
@@ -999,29 +556,6 @@ void ComputeChainBondForces () {
             V_V_S_ADD (mol[j1].ra, fcVal, dr);
             V_V_S_ADD (mol[j2].ra, -fcVal, dr);
             
-            if (restart == 1 && oldEndStep == 0) {
-               fConst += fcVal * dr.x;
-               fConst -= fcVal * dr.x;
-            }
-            
-            if ((stepCount > stepEquil) && (stepCount - stepEquil) % stepConVal == 0) {
-               V_DIV (invWid, sizeVelGrid, region);
-               
-               /* sorting interaction energy for j1 */
-               V_S_ADD (rs, mol[j1].r, 0.5, region);	//shifts coordinates to "positive" region (from 0 to L)
-               V_MUL (cc, rs, invWid);
-               c = V_LINEAR (cc, sizeVelGrid);
-               snapEnGrid[1][c] += 0.5 * uVal;
-               //				snapEnGrid[3][c] += 0.5 * produced by thermostat
-               
-               /* sorting interaction energy for j2 */
-               V_S_ADD (rs, mol[j2].r, 0.5, region);	//shifts coordinates to "positive" region (from 0 to L)
-               V_MUL (cc, rs, invWid);
-               c = V_LINEAR (cc, sizeVelGrid);
-               snapEnGrid[1][c] += 0.5 * uVal;
-               //				snapEnGrid[3][c] += 0.5 * produced by thermostat
-            }
-            
             uSum += uVal;
             //		        if ((stepCount > stepEquil) && ((stepCount - stepEquil) % stepConVal == 0)) {
             fTot = fcVal;
@@ -1031,13 +565,11 @@ void ComputeChainBondForces () {
             V_SUB (dv, mol[j1].rv, mol[j2].rv);
             scal = V_DOT (dr, dv);
             /* random forces */
-            zeta = sqrt (12. * 2. * temperature * gamma_d / deltaT);
             theta = RandR () - 0.5;			// %theta% is in range [-0.5 ; 0.5]
             fDispRand = (zeta * theta - gamma_d * scal * omega_r) * omega_r;
             V_V_S_ADD (mol[j1].ra, fDispRand, dr);
             V_V_S_ADD (mol[j2].ra, -fDispRand, dr);
-         }
-         else {
+         } else {
             ErrExit (ERR_BOND_SNAPPED);
          }
          /* FENE forces */
@@ -1047,29 +579,6 @@ void ComputeChainBondForces () {
             uVal = (-0.5) * k * R2 * log(rrno);
             V_V_S_ADD (mol[j1].ra, fcVal, dr);
             V_V_S_ADD (mol[j2].ra, -fcVal, dr);
-            
-            if (restart == 1 && oldEndStep == 0) {
-               fConst += fcVal * dr.x;
-               fConst -= fcVal * dr.x;
-            }
-            
-            if ((stepCount > stepEquil) && (stepCount - stepEquil) % stepConVal == 0) {
-               V_DIV (invWid, sizeVelGrid, region);
-               
-               /* sorting interaction energy for j1 */
-               V_S_ADD (rs, mol[j1].r, 0.5, region);	// shifts coordinates to "positive" region (from 0 to L)
-               V_MUL (cc, rs, invWid);
-               c = V_LINEAR (cc, sizeVelGrid);
-               snapEnGrid[1][c] += 0.5 * uVal;		// the beads are connected, we look only at Poly-Poly interactions
-               //				snapEnGrid[3][c] += 0.5 * produced by thermostat
-               
-               /* sorting interaction energy for j2 */
-               V_S_ADD (rs, mol[j2].r, 0.5, region);	// shifts coordinates to "positive" region (from 0 to L)
-               V_MUL (cc, rs, invWid);
-               c = V_LINEAR (cc, sizeVelGrid);
-               snapEnGrid[1][c] += 0.5 * uVal;		// the beads are connected, we look only at Poly-Poly interactions
-               //				snapEnGrid[3][c] += 0.5 * produced by thermostat
-            }
             
             fTot += fcVal;
             uSum += uVal;
@@ -1081,16 +590,14 @@ void ComputeChainBondForces () {
 
 /* WALL FORCES ON THE TOP FACE OF THE BOX */
 void ComputeWallForces () {
-   int n, j, N_j, N0, at, N_surf;
-   real zz, zzi, zzi3, rr, rri, rri3, fwVal, wVal;
-   real z_dist, zi, sign, dTop, dBot;
-   real secTermX, secTermY, secTermZ, secTermXY;	// pressure tensor calculating
-   VecR dr_surf;
+   int n, j, N_j;
+   real zz, zzi, zzi3, fwVal, wVal;
+   real z_dist, zi, dTop;
+   real secTermZ;	// pressure tensor calculating
    
    DO_POLY_MOL {
       if (mol[n].r.z >= 0) {
          z_dist = region.z / 2. - mol[n].r.z;
-         //			z_dist = region.z / 4. - mol[n].r.z;
          N_j = halfSl + (int) (mol[n].r.z / hSlab);
          zz = SQR (z_dist);
          zi = 1. / z_dist;
@@ -1115,27 +622,8 @@ void ComputeWallForces () {
    }
 }
 
-void ComputeEinstCryst () {
-   int at;
-   VecR dr;
-   real rr, fcVal, uValEC;
-   
-   DO_SURF {
-      V_SUB (dr, mol[nPolyMol + at].r, ghost[at].r);
-      V_WRAP_ALL (dr);
-      rr = V_LEN_SQ (dr);
-      
-      /* harmonic bond forces */
-      fcVal = 1100.;
-      uValEC = 550. * rr;
-      V_V_S_ADD (mol[nPolyMol + at].ra, -fcVal, dr);
-      
-   }
-}
-
 void ComputeWandSchwingungen () {
    int at;
-   VecR dr, dv;
    real phaseTopW, phaseBotW;
    
    DO_SURF {
@@ -1155,69 +643,6 @@ void ComputeExternalForces () {
    int n;
    
    DO_POLY_MOL mol[n].ra.x += gravField;
-}
-
-void ConstraintCM (int traj) {
-   int n;
-   real fShift;
-   real vxSum;
-   
-   fShift = 0.;
-   
-   if (traj == 0) {				// equilibrating
-      if ( (stepCount - 1) % (stepEquil + limitConstraint + stepShiftCM) == 0 ) {
-         /* subtract the velocity of centre of mass */
-         vxSum = 0.;
-         DO_POLY_MOL {
-            vxSum += mol[n].rv.x;
-         }
-         
-         DO_POLY_MOL mol[n].rv.x -= (vxSum / nPolyMol);
-      }
-      if (stepCount % stepConstraint == 0) {
-         PrintConstraint (stdout, stdout, stdout);
-      }
-      fConst /= nPolyMol;
-      fConstSurf /= nPolyMol;
-      DO_POLY_MOL {
-         mol[n].ra.x -= fConst;
-      }
-   } else if (traj == 1) {				// measuring fConstr
-      if (stepCount % stepConstraint == 0) {
-         fConstAv += fConst;
-         PrintConstraint (stdout, stdout, stdout);
-      }
-      fConst /= nPolyMol;
-      fConstSurf /= nPolyMol;
-      DO_POLY_MOL {
-         mol[n].ra.x -= fConst;
-      }
-   } else if (traj == 2) {				// shifting CM
-      if (stepCount % stepConstraint == 0) {
-         PrintConstraint (stdout, stdout, stdout);
-      }
-      fConst /= nPolyMol;
-      fConstSurf /= nPolyMol;
-      
-      vxSum = 0.;
-      
-      DO_POLY_MOL {
-         vxSum += mol[n].rv.x;
-      }
-      
-      DO_POLY_MOL mol[n].rv.x -= (vxSum / nPolyMol);
-      
-      /*		DO_POLY_MOL {
-       mol[n].ra.x -= fConst;
-       }
-       */
-      fShift = segmPathLen / (deltaT * stepShiftCM);
-      
-      DO_POLY_MOL {
-         mol[n].rv.x += fShift;
-      }
-   }
-   
 }
 
 /* LEAP-FROG METHOD FOR INTEGRATING NEWTON'S EQUATIONS*/
@@ -1516,12 +941,7 @@ void InitSubstrate (int SysType) {
       centUCinZ[nz] = cSurf.z + 0.25 * gapSurf.z;
    }
    botSUnitNum = MaxSUnitNum;
-   /* find out the grid level in z-direction where the top substrate's atom is */
-   if (topSubAtZ < 0)
-      k0 = (int) (sizeCoordGrid.z / 2.) - (int) ((-topSubAtZ) * sizeCoordGrid.z / region.z) - 1;
-   else
-      k0 = (int) (sizeCoordGrid.z / 2.) + (int) (topSubAtZ * sizeCoordGrid.z / region.z);
-   
+
    /* top substrate */
    atTopWall = 0;		// is needed for setting up a flow in channel with walls of different topology
    if (problem == 1 && flatTopW == 0) {
@@ -1745,7 +1165,7 @@ void CopyAbsWrapChains () {
 
 /* SET INITIAL VELOCITIES FOR BEADS TO RANDOM NUMBERS (based on initial temperature) */
 void InitVels () {
-   int n, at, atWall;
+   int n, atWall;
    
    V_ZERO (vSum);
    velMag = sqrt (NDIM * (1. - 1. / nPolyMol) * temperature);
@@ -1759,18 +1179,6 @@ void InitVels () {
    DO_POLY_MOL V_V_S_ADD (mol[n].rv, - 1. / nPolyMol, vSum);
    
    /* set initial velocities to substrate atoms */
-   if (einstCryst == 1) {
-      V_ZERO (vSum);
-      velMagSub = sqrt (NDIM * (1. - 1. / nSurf) * temperature);
-      DO_SURF {
-         VRand (&mol[nPolyMol + at].rv);
-         V_SCALE (mol[nPolyMol + at].rv, velMagSub);
-         V_V_ADD (vSum, mol[nPolyMol + at].rv);
-      }
-      
-      DO_SURF V_V_S_ADD (mol[nPolyMol + at].rv, - 1. / nSurf, vSum);
-   }
-   
    atWall = (int) (nSurf / 2);
    
    if (shearRate == 0.) {
@@ -1842,91 +1250,34 @@ void EvalProps () {
    if (dispHi > 0.5 * rNebrShell) nebrNow = 1;
    kinEnergy.val = 0.5 * vvSum / nPolyMol;
    totEnergy.val = kinEnergy.val + uSum / nPolyMol;
-   if (problem == 1)
-      p_sEnergy.val = U_LJ_sub / (2. * epsWall * region.x * region.y);	// polymer-surface energy normalized by AREA and epsWall
-   else
-      p_sEnergy.val = U_LJ_sub / (epsWall * region.x * region.y);	// polymer-surface energy normalized by AREA and epsWall
    pressure.val = density * (vvSum + virSum) / (nPolyMol * NDIM);	// not real pressure (doesn't work for inhomogeneous systems)
    
-   f1x.val = force1.x;
-   f1y.val = force1.y;
-   f1z.val = force1.z;
-   f2x.val = force2.x;
-   f2y.val = force2.y;
-   f2z.val = force2.z;
-   fTx.val = forceT.x;
-   fTy.val = forceT.y;
-   fTz.val = forceT.z;
 }
 
 void AccumProps (int icode) {
-   int n;
-   
    if (icode == 0) {
       PROP_ZERO (totEnergy);
       PROP_ZERO (kinEnergy);
-      PROP_ZERO (p_sEnergy);
       PROP_ZERO (pressure);
-      PROP_ZERO (f1x);
-      PROP_ZERO (f1y);
-      PROP_ZERO (f1z);
-      PROP_ZERO (f2x);
-      PROP_ZERO (f2y);
-      PROP_ZERO (f2z);
-      PROP_ZERO (fTx);
-      PROP_ZERO (fTy);
-      PROP_ZERO (fTz);
-      /*		for (n = 0; n < totSUnitNum; n++) {
-       enLJSUnit[n] = 0.;
-       }
-       */
    } 
    else if (icode == 1) {
       PROP_ACCUM (totEnergy);
       PROP_ACCUM (kinEnergy);
-      PROP_ACCUM (p_sEnergy);
       PROP_ACCUM (pressure);
-      PROP_ACCUM (f1x);
-      PROP_ACCUM (f1y);
-      PROP_ACCUM (f1z);
-      PROP_ACCUM (f2x);
-      PROP_ACCUM (f2y);
-      PROP_ACCUM (f2z);
-      PROP_ACCUM (fTx);
-      PROP_ACCUM (fTy);
-      PROP_ACCUM (fTz);
    } 
    else if (icode == 2) {
       PROP_AVG (totEnergy, stepAvg);
       PROP_AVG (kinEnergy, stepAvg);
-      PROP_AVG (p_sEnergy, stepAvg);
       PROP_AVG (pressure, stepAvg);
-      PROP_AVG (f1x, stepAvg);
-      PROP_AVG (f1y, stepAvg);
-      PROP_AVG (f1z, stepAvg);
-      PROP_AVG (f2x, stepAvg);
-      PROP_AVG (f2y, stepAvg);
-      PROP_AVG (f2z, stepAvg);
-      PROP_AVG (fTx, stepAvg);
-      PROP_AVG (fTy, stepAvg);
-      PROP_AVG (fTz, stepAvg);
-      /*		for (n = 0; n < totSUnitNum; n++) {
-       enLJSUnit[n] /= (stepAvg * effSUArea);
-       }
-       */
    }
 }
 
 void PrintSummary (FILE *fp, int SysType) {
    if (stepCount == stepAvg) {
       fprintf (fp,
-               "%7d %8.3f %8.5f  %7.4f %6.4f  %7.4f %6.4f  %7.4f %6.4f  %7.4f %6.4f %7.5f ",
+               "%7d %8.3f %8.5f  %7.4f %6.4f  %7.4f %6.4f  %7.4f %6.4f  %7.5f ",
                stepCount, timeNow, V_C_SUM (vSum) / nPolyMol, PROP_EST (totEnergy),
-               PROP_EST (kinEnergy), PROP_EST (p_sEnergy), PROP_EST (pressure), U0_surf);
-      fprintf (fp, "%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", PROP_EST (f1x), PROP_EST (f1y), PROP_EST (f1z));
-      fprintf (fp, "%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", PROP_EST (f2x), PROP_EST (f2y), PROP_EST (f2z));
-      fprintf (fp, "%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", PROP_EST (fTx), PROP_EST (fTy), PROP_EST (fTz));
-      //		fprintf (fp, "%8.4f %7d %8.4f %7d %8.4f", topSubAtZ, N_high_surf, dTop_high_surf, k0, centUCinZ[0]);
+               PROP_EST (kinEnergy), PROP_EST (pressure), U0_surf);
       switch (SysType) {
          case 0:
             fprintf (fp, "   film\n");
@@ -1940,12 +1291,9 @@ void PrintSummary (FILE *fp, int SysType) {
       }
    } else {
       fprintf (fp,
-               "%7d %8.3f %8.5f  %7.4f %6.4f  %7.4f %6.4f  %7.4f %6.4f  %7.4f %6.4f %7.5f\n",
+               "%7d %8.3f %8.5f  %7.4f %6.4f  %7.4f %6.4f  %7.4f %6.4f  %7.5f\n",
                stepCount, timeNow, V_C_SUM (vSum) / nPolyMol, PROP_EST (totEnergy),
-               PROP_EST (kinEnergy), PROP_EST (p_sEnergy), PROP_EST (pressure), U0_surf);
-      fprintf (fp, "%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", PROP_EST (f1x), PROP_EST (f1y), PROP_EST (f1z));
-      fprintf (fp, "%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", PROP_EST (f2x), PROP_EST (f2y), PROP_EST (f2z));
-      fprintf (fp, "%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", PROP_EST (fTx), PROP_EST (fTy), PROP_EST (fTz));
+               PROP_EST (kinEnergy), PROP_EST (pressure), U0_surf);
    }
    fflush (fp);
 }
@@ -1966,30 +1314,7 @@ void EvalGridProfile () {
       profileZX[i] = 0.;
       profile_botZX[i] = 0.;
    }
-   
-   /* collect grid histograms for coordinate grid */
-   /*	for (i = 0; i < sizeCoordGrid.x; i++) {
-    enter_droplet = 0;
-    for (k = 0; k < sizeCoordGrid.z; k++) {
-    */			/* collecting densities along y-axis [making 2D density map out of 3D] */
-   /*			for (j = 0; j < sizeCoordGrid.y; j++) {
-				n = k * sizeCoordGrid.x * sizeCoordGrid.y + j * sizeCoordGrid.x + i;
-				den2D[i][k] += histCoordGrid[0][n];
-    }
-    den2D[i][k] /= (V_PROD(region) / (sizeCoordGrid.x * sizeCoordGrid.z) );
-    denMap[i][k] = den2D[i][k];
-    
-    */			/* applying profile's line criteria (\rho_liquid + \rho_vapor)/2 */
-   /*			if ( (enter_droplet == 0) && (den2D[i][k] >= halfDen) ) {
-				profile_botZX[i] = (k + 0.5 - sizeCoordGrid.z / 2.) * region.z / sizeCoordGrid.z;
-				enter_droplet = 1;
-    } else if ( (enter_droplet == 1) && (profile_botZX[i] < 0.) && 	// avoiding all "flying" chains in the region z > 0
-    (den2D[i][k-1] >= halfDen) && (den2D[i][k] < halfDen) ) {
-				profileZX[i] = (k + 0.5 - sizeCoordGrid.z / 2.) * region.z / sizeCoordGrid.z;
-    }
-    }
-    }
-    */
+
    /* collect grid histograms for coordinate grid */
    for (i = 0; i < sizeCoordGrid.x; i++) {
       enter_droplet = 0;
@@ -2017,16 +1342,11 @@ void EvalGridProfile () {
    /* set histogram values calcilated for velocity grid to 0 */
    for (i = 0; i < sizeVelGrid.x; i++) {
       for (k = 0; k < sizeVelGrid.z; k++) {
-         //			nMolVel2D[i][k] = 0;
          vel2D_x[i][k] = 0.;
          vel2D_z[i][k] = 0.;
          vel2D_xx[i][k] = 0.;
          vel2D_zz[i][k] = 0.;
          dropVel2D[i][k] = 0.;
-         
-         potEnPP[i][k] = 0.;
-         potEnPS[i][k] = 0.;
-         thermTaG2D[i][k] = 0.;
       }
    }
    
@@ -2042,20 +1362,7 @@ void EvalGridProfile () {
             vel2D_xx[i][k] += histVelGrid[5][n];
             vel2D_zz[i][k] += histVelGrid[6][n];
             dropVel2D[i][k] += histVelGrid[1][n];
-            /*				vel2D_x[i][k] += histVelGrid[2][n] * histVelGrid[0][n];
-             vel2D_z[i][k] += histVelGrid[4][n] * histVelGrid[0][n];
-             vel2D_xx[i][k] += histVelGrid[5][n] * histVelGrid[0][n];
-             vel2D_zz[i][k] += histVelGrid[6][n] * histVelGrid[0][n];
-             dropVel2D[i][k] += histVelGrid[1][n] * histVelGrid[0][n];
-             */
-            
-            potEnPP[i][k] += histEnGrid[1][n];
-            potEnPS[i][k] += histEnGrid[2][n];
-            thermTaG2D[i][k] += histEnGrid[3][n];
-            /*				potEnPP[i][k] += histEnGrid[1][n] * histEnGrid[0][n];
-             potEnPS[i][k] += histEnGrid[2][n] * histEnGrid[0][n];
-             thermTaG2D[i][k] += histEnGrid[3][n] * histEnGrid[0][n];
-             */			}
+			}
          
          vel2D_x[i][k] /= sizeVelGrid.y;
          vel2D_z[i][k] /= sizeVelGrid.y;
@@ -2063,87 +1370,15 @@ void EvalGridProfile () {
          vel2D_zz[i][k] /= sizeVelGrid.y;
          dropVel2D[i][k] /= sizeVelGrid.y;
          
-         potEnPP[i][k] /= sizeVelGrid.y;
-         potEnPS[i][k] /= sizeVelGrid.y;
-         thermTaG2D[i][k] /= sizeVelGrid.y;
-         /*			if (nMolVel2D[i][k] > 0.) {
-          vel2D_x[i][k] /= nMolVel2D[i][k];
-          vel2D_z[i][k] /= nMolVel2D[i][k];
-          vel2D_xx[i][k] /= nMolVel2D[i][k];
-          vel2D_zz[i][k] /= nMolVel2D[i][k];
-          dropVel2D[i][k] /= 2. * nMolVel2D[i][k];		// "2" because we want to know energy, not v^2
-          
-          potEnPP[i][k] /= nMolVel2D[i][k];
-          potEnPS[i][k] /= nMolVel2D[i][k];
-          thermTaG2D[i][k] /= nMolVel2D[i][k];
-          }
-          */		}
+      }
    }
-   
-   /*
-    *	uncomment if analysis of vel/temp for every z-plane in grid geometry is needed
-    *	it is similar to analysis for slab geometry, but works not so good for droplets
-    *	the reason is - in every grid at the same z-level there are grids with smaller
-    *	velocities than in the bulk phase. Therefore averaging makes vel/temp a bit lower
-    */
-   /* set all profile values calculated from velocity grid to 0 */
-   /*	for (k = 0; k < sizeVelGrid.z; k++) {
-    profileVx[k] = 0.;
-    profileT[k] = 0.;
-    ocCellXY[k] = 0;
-    }
-    */	/* collect profile values at the same z-grid level */
-   /*	for (k = 0; k < sizeVelGrid.z; k++) {
-    */		/* collecting velocities along xy-plane [making 1D map out of 2D] */
-   /*		for (i = 0; i < sizeVelGrid.x; i++) {
-    if (dropVel2D[i][k] > 0.) {
-				++ocCellXY[k];
-				profileVx[k] += vel2D_x[i][k];
-				profileT[k] += dropVel2D[i][k];
-    }
-    }
-    if (ocCellXY[k] > 0.) {
-    //			profileVx[k] /= sizeVelGrid.x * sizeVelGrid.y;
-    //			profileT[k] /= sizeVelGrid.x * sizeVelGrid.y;
-    profileVx[k] /= ocCellXY[k];
-    profileT[k] /= (3. * ocCellXY[k]); // factor 3. makes T out of V^2
-    } else {
-    }
-    
-    }
-    */
-   
-   /*
-    *	another realisation of the same analysis
-    
-    for (n = 0; n < V_PROD (sizeVelGrid); n++) {
-    k = (int) ( n / (sizeVelGrid.x * sizeVelGrid.y) );
-    if (histVelGrid[0][n] > 0.) {
-    ocCellXY[k] += histVelGrid[0][n];
-    profileVx[k] += histVelGrid[2][n];
-    profileT[k] += histVelGrid[1][n];
-    } else {
-    }
-    }
-    */
-   /* renormalisation */
-   /*	for (k = 0; k < sizeVelGrid.z; k++) {
-    if (ocCellXY[k] > 0.) {
-    profileVx[k] /= sizeVelGrid.x * sizeVelGrid.y;
-    profileT[k] /= sizeVelGrid.x * sizeVelGrid.y;
-    //			profileVx[k] /= ocCellXY[k];
-    //			profileT[k] /= (3. * ocCellXY[k]);
-    } else {
-    }
-    }
-    */
 }
 
 void EvalControlValues (int make_controlFile, int opCode) {
    if (make_controlFile == 1) {
       VecR dr_ree;
       VecR ijDist;
-      int i, j, n;
+      int i, j;
       
       if (opCode == 0) {
          PROP_ZERO (ReeAv);
@@ -2241,7 +1476,6 @@ void WrapChainsIntoCell () {
 #include "subroutines/pr_profile.c"
 #include "subroutines/grid_profiles.c"
 #include "subroutines/vel_profile_slab_geometry.c"
-#include "subroutines/contact_line.c"
 #include "subroutines/itoa.c"
 #include "subroutines/reverse.c"
 

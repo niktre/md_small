@@ -23,9 +23,6 @@ typedef double real;
 #define DO_SURF  for (at = 0; at < nSurf; at ++)
 #define DO_CELL(j,m)  for (j = cellList[m]; j >= 0; j = cellList[j])
 
-//#define V_WRAP(v, t)								\
-   if (v.t >= .5 * region.t) do(v.t -= region.t); while(v.t >= .5 * region.t);	\
-   else if (v.t < -.5 * region.t) do(v.t += region.t); while(v.t < -.5 * region.t);	
 #define FIND_SLAB(slab, slabNum, pos, regSize)							\
 	if (pos < 0.) slab = (int) (slabNum / 2.) - (int) (-pos * slabNum / regSize) - 1;	\
 	else slab = (int) (slabNum / 2.) + (int) (pos * slabNum / regSize);
@@ -56,15 +53,15 @@ typedef double real;
 #define V_WRAP_ALL(v)						\
 	{V_WRAP (v, x);						\
 	V_WRAP (v, y);}//					\
-	V_WRAP (v, z);}
+//	V_WRAP (v, z);}
 #define V_SHIFT_ALL(v)						\
 	{V_SHIFT (v, x);					\
 	V_SHIFT (v, y);}//					\
-	V_SHIFT (v, z);}
+//	V_SHIFT (v, z);}
 #define V_CELL_WRAP_ALL()					\
 	{V_CELL_WRAP (x);					\
 	V_CELL_WRAP (y);}//					\
-	V_CELL_WRAP (z);}
+//	V_CELL_WRAP (z);}
 
 #define N_OFFSET	14
 

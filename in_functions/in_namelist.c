@@ -3,12 +3,11 @@
 #define NP_R	((real *) (nameList[k].vPtr) + j)
 
 int GetNameList (int argc, char **argv) {
-	int id, j, k, match, ok;
+	int j, k, match, ok;
 	char buff[80], *token;
 	extern char param_fullname[80];
 	FILE *fp;
 
-//	strcpy (buff, "/home/tretyakov/multiflow/md_dpd/input_values.in");
 	strcpy (buff, param_fullname);
 	if ((fp = fopen (buff, "r")) == 0) return (0);
 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k++)
@@ -109,6 +108,5 @@ void PrintNameList (FILE *fp) {
 	}
 	fprintf (fp, "----\n");
 	fprintf (fp, "   step     time    avMom  avTotEn  stDev  avKinEn  stDev  psIntEn  stDev   totalP  stDev  \n");
-//	fprintf (fp, "   step     time    avMom  avTotEn  stDev  avKinEn  stDev  psIntEn  stDev   totalP  stDev  topSubAtZ N_high_surf dTop_high_surf k0 effSUArea\n");
 	fflush (fp);
 }

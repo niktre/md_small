@@ -14,8 +14,6 @@ void *BuildNebrListT (void *);
 
 void CentrifyHistogram (VecLI, int, int, real **, real **);
 
-void EvalContactRegion (int);
-
 void ComputeChainBondForces (void);
 
 void ComputeChainBondForcesPT (void);
@@ -31,8 +29,6 @@ void ComputeForcesPT (void);
 void ComputeWallForces (void);
 
 void ComputeWandSchwingungen (void);
-
-void ConstraintCM (int);
 
 void CoordGridAverage (int);
 
@@ -76,8 +72,6 @@ void itoa (int, char *);          // function converts int to char
 
 void LeapfrogStep (int);
 
-void MakeContactRegFilename (int);
-
 void MakeFilename (int, int);
 
 void MakeParamFile (FILE *, FILE *, FILE *, int, char **);
@@ -87,8 +81,6 @@ void ModifyWidth (void);
 void PrintChainProps (FILE *);
 
 void PrintConstraint (FILE *, FILE *, FILE *);
-
-void PrintContactRegion (FILE *, FILE *);
 
 void PrintControlFile (FILE *);
 
