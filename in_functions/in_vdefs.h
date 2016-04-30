@@ -25,56 +25,6 @@ typedef struct {int x, y, z;} VecI3;
 typedef struct {long x, y;} VecLI2;
 typedef struct {long x, y, z;} VecLI3;
 
-/*
-#if NDIM == 2
-typedef VecR2 VecR;
-typedef VecI2 VecI;
-typedef VecLI2 VecLI;
-#define V_SET(v, sx, sy)                                     \
-   (v).x = sx,                                              \
-   (v).y = sy
-#define V_COPY(v1, v2)                                       \
-   (v1).x = (v2).x,                                         \
-   (v1).y = (v2).y
-#define V_SCALE(v, s)                                        \
-   (v).x *= s,                                              \
-   (v).y *= s
-#define V_S_COPY(v2, s1, v1)                                  \
-   (v2).x = (s1) * (v1).x,                                  \
-   (v2).y = (s1) * (v1).y
-#define V_ADD(v1, v2, v3)                                    \
-   (v1).x = (v2).x + (v3).x,                                \
-   (v1).y = (v2).y + (v3).y
-#define V_SUB(v1, v2, v3)                                    \
-   (v1).x = (v2).x - (v3).x,                                \
-   (v1).y = (v2).y - (v3).y
-#define V_MUL(v1, v2, v3)                                    \
-   (v1).x = (v2).x * (v3).x,                                \
-   (v1).y = (v2).y * (v3).y
-#define V_DIV(v1, v2, v3)                                    \
-   (v1).x = (v2).x / (v3).x,                                \
-   (v1).y = (v2).y / (v3).y
-#define V_S_ADD(v1, v2, s3, v3)                               \
-   (v1).x = (v2).x + (s3) * (v3).x,                         \
-   (v1).y = (v2).y + (s3) * (v3).y
-#define V_S_S_ADD(v1, s2, v2, s3, v3)                          \
-   (v1).x = (s2) * (v2).x + (s3) * (v3).x,                  \
-   (v1).y = (s2) * (v2).y + (s3) * (v3).y
-#define V_DOT(v1, v2)                                        \
-   ((v1).x * (v2).x + (v1).y * (v2).y)
-#define V_W_DOT(v1, v2, v3)                                   \
-   ((v1).x * (v2).x * (v3).x + (v1).y * (v2).y * (v3).y)
-#define V_PROD(v)                                            \
-   ((v).x * (v).y)
-#define V_LINEAR(p,s)						\
-	((p).y * (s).x + p.x)
-#define V_SET_ALL(v, s)						\
-   VSet (v, s, s)
-#define V_C_SUM(v)                                            \
-   ((v).x + (v).y)
-
-#endif
-*/
 #if NDIM == 3
 typedef VecR3 VecR;
 typedef VecI3 VecI;
